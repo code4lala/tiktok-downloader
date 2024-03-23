@@ -13,6 +13,10 @@ const { resolve } = require("path");
 const { reject } = require("lodash");
 const {Headers} = require('node-fetch');
 const readline = require('readline');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+
+const proxyUrl = '127.0.0.1:7890'
+const proxyAgent = new HttpsProxyAgent('http://' + proxyUrl);
 
 //load inq module
 inquirer.registerPrompt('fuzzypath', require('inquirer-fuzzy-path'))
@@ -83,7 +87,7 @@ const downloadMedia = async (item) => {
                 return;
             }
             index++;
-            const downloadFile = fetch(image_url);
+            const downloadFile = fetch(image_url, { agent: proxyAgent });
             const file = fs.createWriteStream(folder + fileName);
             
             downloadFile.then(res => {
@@ -104,7 +108,7 @@ const downloadMedia = async (item) => {
             console.log(chalk.yellow(`[!] File '${fileName}' already exists. Skipping`));
             return;
         }
-        const downloadFile = fetch(item.url);
+        const downloadFile = fetch(item.url, { agent: proxyAgent });
         const file = fs.createWriteStream(folder + fileName);
         
         downloadFile.then(res => {
@@ -123,6 +127,7 @@ const getVideo = async (url, watermark) => {
     const idVideo = await getIdVideo(url)
     const API_URL = `https://api16-normal-c-useast2a.tiktokv.com/aweme/v1/feed/?aweme_id=${idVideo}`;
     const request = await fetch(API_URL, {
+        agent: proxyAgent,
         method: "GET",
         headers : headers
     });
@@ -169,6 +174,7 @@ const getVideo = async (url, watermark) => {
 const getListVideoByUsername = async (username) => {
     var baseUrl = await generateUrlProfile(username)
     const browser = await puppeteer.launch({
+        args: [ '--proxy-server=' + proxyUrl ],
         headless: false,
     })
     const page = await browser.newPage()
@@ -204,6 +210,7 @@ return videoUrls2;
 const getRedirectUrl = async (url) => {
     if(url.includes("vm.tiktok.com") || url.includes("vt.tiktok.com")) {
         url = await fetch(url, {
+            agent: proxyAgent,
             redirect: "follow",
             follow: 10,
         });
@@ -234,9 +241,10 @@ const getIdVideo = async (url) => {
 }
 
 (async () => {    
-    const header = "\r\n \/$$$$$$$$ \/$$$$$$ \/$$   \/$$ \/$$$$$$$$ \/$$$$$$  \/$$   \/$$       \/$$$$$$$   \/$$$$$$  \/$$      \/$$ \/$$   \/$$ \/$$        \/$$$$$$   \/$$$$$$  \/$$$$$$$  \/$$$$$$$$ \/$$$$$$$ \r\n|__  $$__\/|_  $$_\/| $$  \/$$\/|__  $$__\/\/$$__  $$| $$  \/$$\/      | $$__  $$ \/$$__  $$| $$  \/$ | $$| $$$ | $$| $$       \/$$__  $$ \/$$__  $$| $$__  $$| $$_____\/| $$__  $$\r\n   | $$     | $$  | $$ \/$$\/    | $$  | $$  \\ $$| $$ \/$$\/       | $$  \\ $$| $$  \\ $$| $$ \/$$$| $$| $$$$| $$| $$      | $$  \\ $$| $$  \\ $$| $$  \\ $$| $$      | $$  \\ $$\r\n   | $$     | $$  | $$$$$\/     | $$  | $$  | $$| $$$$$\/        | $$  | $$| $$  | $$| $$\/$$ $$ $$| $$ $$ $$| $$      | $$  | $$| $$$$$$$$| $$  | $$| $$$$$   | $$$$$$$\/\r\n   | $$     | $$  | $$  $$     | $$  | $$  | $$| $$  $$        | $$  | $$| $$  | $$| $$$$_  $$$$| $$  $$$$| $$      | $$  | $$| $$__  $$| $$  | $$| $$__\/   | $$__  $$\r\n   | $$     | $$  | $$\\  $$    | $$  | $$  | $$| $$\\  $$       | $$  | $$| $$  | $$| $$$\/ \\  $$$| $$\\  $$$| $$      | $$  | $$| $$  | $$| $$  | $$| $$      | $$  \\ $$\r\n   | $$    \/$$$$$$| $$ \\  $$   | $$  |  $$$$$$\/| $$ \\  $$      | $$$$$$$\/|  $$$$$$\/| $$\/   \\  $$| $$ \\  $$| $$$$$$$$|  $$$$$$\/| $$  | $$| $$$$$$$\/| $$$$$$$$| $$  | $$\r\n   |__\/   |______\/|__\/  \\__\/   |__\/   \\______\/ |__\/  \\__\/      |_______\/  \\______\/ |__\/     \\__\/|__\/  \\__\/|________\/ \\______\/ |__\/  |__\/|_______\/ |________\/|__\/  |__\/\r\n\n by n0l3r (https://github.com/n0l3r)\n"
-    console.log(chalk.blue(header))
-    const choice = await getChoice();
+    const choice = {
+        choice: "Single Download (URL)",
+        type: "Without Watermark"
+    };
     var listVideo = [];
     if (choice.choice === "Mass Download (Username)") {
         const usernameInput = await getInput("Enter the username with @ (e.g. @username) : ");
@@ -313,7 +321,8 @@ const getIdVideo = async (url) => {
             listVideo.push(url);
         }
     } else {
-        const urlInput = await getInput("Enter the URLs separated by commas: ");
+        const urlInput = process.argv[2].split(",").map(url => url.trim());
+        // const urlInput = await getInput("Enter the URLs separated by commas: ");
         for (const url of urlInput) {
             const resolvedUrl = await getRedirectUrl(url);
             listVideo.push(resolvedUrl);
